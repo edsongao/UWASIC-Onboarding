@@ -1,4 +1,7 @@
-
+/*
+ * Copyright (c) 2024 Edson Gao
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 module spi_peripheral (
     input wire clk,     // clock
