@@ -55,6 +55,6 @@ module tt_um_uwasic_onboarding_edson (
 
     
   // Add uio_in and ui_in[7:3] to the list of unused signals:
-    wire _unused = &{ena, ui_in[7:3], uio_in, clk, rst_n, 1'b0};
+  wire _unused = &{ena, ui_in[7:3], uio_in, 1'b0};
 
 endmodule
