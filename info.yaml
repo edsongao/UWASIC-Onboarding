@@ -7,7 +7,7 @@ project:
   language:     "Verilog"   # other examples include SystemVerilog, Amaranth, VHDL, etc
   clock_hz:     0           # Clock frequency in Hz (or 0 if not applicable)
   tiles:        "1x1"       # <<— must be indented here under project
-  top_module:   tt_um_onboarding_edson
+  top_module:   tt_um_uwasic_onboarding_edson
   source_files:
     - spi_peripheral.v
     - pwm_peripheral.v
