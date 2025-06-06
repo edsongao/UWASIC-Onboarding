@@ -1,10 +1,4 @@
-# NOT REQUIRED
-pinout:
-  # Inputs
-  ui[0]: "SCLK"
-  ui[1]: "COPI"# Tiny Tapeout project information
-project:
-  title: "ASIC Onboarding Project - Edson Gao"  
+ title: "ASIC Onboarding Project - Edson Gao"  
   author: "Edson Gao"  
   discord:      "electroegg"                                         # Your discord username, for communication and automatically assigning you a Tapeout role (optional)
   description:  "SPI-controlled PWM peripheral for Tiny Tapeout."   # One line description of what your project does
