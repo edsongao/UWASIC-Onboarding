@@ -53,12 +53,3 @@ pinout:
   uio[5]: "OUT_D"
   uio[6]: "OUT_E"
   uio[7]: "OUT_F"
-
-# Do not change!
-yaml_version: 6
-  ui[2]: "nCS"
-  ui[3]: ""
-  ui[4]: ""
-  ui[5]: ""
-  ui[6]: ""
-  ui[7]: ""
