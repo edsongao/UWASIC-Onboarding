@@ -53,3 +53,6 @@ pinout:
   uio[5]: "OUT_D"
   uio[6]: "OUT_E"
   uio[7]: "OUT_F"
+
+# Do not change!
+yaml_version: 6
