@@ -15,6 +15,9 @@ module tt_um_uwasic_onboarding_edson (
     input  wire       clk,      // clock
     input  wire       rst_n     // reset_n - low to reset
 );     // Create wires to refer to the values of the registers
+
+    assign uio_oe = 8'hFF; // Set all IOs to output
+    
   wire [7:0] en_reg_out_7_0;
   wire [7:0] en_reg_out_15_8;
   wire [7:0] en_reg_pwm_7_0;
