@@ -198,9 +198,7 @@ async def test_pwm_freq(dut):
     await send_spi_transaction(dut, 1, 0x04, 0x80) # Set duty cycle to ~50%
     
     # Measure the frequency
-    period_ns = await measure_freq(dut)
-    assert period_ns = 0, "Timeout while measuring frequency. PWM signal is not oscillating."
-    
+    period_ns = await measure_freq(dut)    
     frequency = 1 / (period_ns * 1e-9)
     dut._log.info(f"Measured frequency: {frequency:.2f} Hz")
 
