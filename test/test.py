@@ -67,67 +67,35 @@ async def send_spi_transaction(dut, r_w, address, data):
     dut.ui_in.value = ui_in_logicarray(ncs, bit, sclk)
     await ClockCycles(dut.clk, 600)
     return ui_in_logicarray(ncs, bit, sclk)
-
-async def measure_freq(dut, timeout_ns=3_000_000):
-    """Measures the period of the PWM signal on uo_out[0] using manual polling."""
-    start_time = cocotb.utils.get_sim_time(units="ns")
     
-    # Wait for the signal to be low
-    while dut.uo_out[0].value == 1:
-        await ClockCycles(dut.clk, 1)
-        if cocotb.utils.get_sim_time(units="ns") - start_time > timeout_ns: return 0
-    
-    # Wait for a rising edge
-    while dut.uo_out[0].value == 0:
-        await ClockCycles(dut.clk, 1)
-        if cocotb.utils.get_sim_time(units="ns") - start_time > timeout_ns: return 0
-    
-    t_rise1 = cocotb.utils.get_sim_time(units="ns")
-
-    # Wait for a falling edge
-    while dut.uo_out[0].value == 1:
-        await ClockCycles(dut.clk, 1)
-        if cocotb.utils.get_sim_time(units="ns") - start_time > timeout_ns: return 0
-
-    # Wait for the next rising edge
-    while dut.uo_out[0].value == 0:
-        await ClockCycles(dut.clk, 1)
-        if cocotb.utils.get_sim_time(units="ns") - start_time > timeout_ns: return 0
-        
-    t_rise2 = cocotb.utils.get_sim_time(units="ns")
-    return t_rise2 - t_rise1
-
 @cocotb.test()
-async def test_pwm_freq(dut):
-    dut._log.info("Start PWM frequency test")
+async def test_pwm_duty(dut):
+    dut._log.info("Start PWM Duty Cycle test suite")
+
     clock = Clock(dut.clk, 100, units="ns")
     cocotb.start_soon(clock.start())
 
     dut._log.info("Reset")
     dut.ena.value = 1
+    ncs = 1
+    bit = 0
+    sclk = 0
+    dut.ui_in.value = ui_in_logicarray(ncs, bit, sclk)
     dut.rst_n.value = 0
     await ClockCycles(dut.clk, 5)
     dut.rst_n.value = 1
     await ClockCycles(dut.clk, 5)
 
-    # Configure PWM for 50% duty cycle
-    await send_spi_transaction(dut, 1, 0x00, 0xFF) # Enable all uo_out
-    await send_spi_transaction(dut, 1, 0x02, 0xFF) # Enable PWM on all uo_out
-    await send_spi_transaction(dut, 1, 0x04, 0x80) # Set duty cycle ~50%
+    dut._log.info("Configuring PWM for duty cycle tests")
+    await send_spi_transaction(dut, 1, 0x01, 0x01)  # Enable uio_out[0]
+    await send_spi_transaction(dut, 1, 0x02, 0x01)  # Enable PWM on uio_out[0]
 
-    period_ns = await measure_freq(dut)
-    assert period_ns > 0, "Timeout while measuring frequency."
+    duty_cycles_to_test = [0, 50, 100]
+    for dc in duty_cycles_to_test:
+        await set_and_verify_duty_cycle(dut, dc)
+
+    dut._log.info("PWM Duty Cycle test completed successfully")
     
-    frequency = 1 / (period_ns * 1e-9)
-    dut._log.info(f"Measured frequency: {frequency:.2f} Hz")
-
-    expected_freq = 3000
-    tolerance = 0.01 # 1%
-    assert expected_freq * (1 - tolerance) <= frequency <= expected_freq * (1 + tolerance), \
-        f"Frequency {frequency:.2f} Hz is out of tolerance range."
-
-    dut._log.info("PWM Frequency test completed successfully")
-
 @cocotb.test()
 async def test_pwm_freq(dut):
     dut._log.info("Start PWM frequency test suite")
