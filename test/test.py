@@ -142,10 +142,8 @@ async def test_pwm_freq(dut):
     await ClockCycles(dut.clk, 5)
     dut.rst_n.value = 1
     await ClockCycles(dut.clk, 5)
-    await send_spi_transaction(dut, 1, 0x00, 0xFF)
-    await send_spi_transaction(dut, 1, 0x01, 0xFF)
-    await send_spi_transaction(dut, 1, 0x02, 0xFF)
-    await send_spi_transaction(dut, 1, 0x03, 0xFF)
+    await send_spi_transaction(dut, 1, 0x00, 0x01)
+    await send_spi_transaction(dut, 1, 0x02, 0x01)
 
     # --- Test Case 1: Oscillating Signal at 50% Duty Cycle ---
     dut._log.info("--- Testing oscillating frequency (50% duty cycle) ---")
