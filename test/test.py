@@ -1,11 +1,11 @@
 # SPDX-FileCopyrightText: © 2024 Tiny Tapeout
 # SPDX-License-Identifier: Apache-2.0
-
 import cocotb
 from cocotb.clock import Clock
-from cocotb.triggers import ClockCycles
-from cocotb.types import Logic
-from cocotb.types import LogicArray
+from cocotb.triggers import RisingEdge, FallingEdge, with_timeout, ClockCycles
+from cocotb.types import Logic, LogicArray
+import cocotb.utils
+import cocotb.result
 
 async def await_half_sclk(dut):
     """Wait for the SCLK signal to go high or low."""
