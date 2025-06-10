@@ -128,22 +128,24 @@ async def test_pwm_freq(dut):
 
     dut._log.info("PWM Frequency test completed successfully")
 
+# Returns the period between rising edges in nanoseconds, or 0 on timeout.
 async def measure_freq(dut, timeout_ms=3):
     """
-    Measures the period between two rising edges of dut.uo_out[0] using manual polling.
-    Returns the period in nanoseconds, or 0 on timeout.
+    Measures the period of dut.uo_out[0] using manual polling.
+    This function first waits for a full rising edge to synchronize, then measures
+    the time until the next rising edge.
     """
     timeout_ns = timeout_ms * 1_000_000
     start_measure_time = cocotb.utils.get_sim_time(units="ns")
 
-    # Synchronize to a rising edge
+    # --- Synchronization: Wait for the first rising edge to start cleanly ---
     # First, wait for the signal to be low (with timeout)
     while dut.uo_out[0].value == 1:
         await ClockCycles(dut.clk, 1)
         if (cocotb.utils.get_sim_time(units="ns") - start_measure_time) > timeout_ns:
             dut._log.error("Timeout waiting for signal to go low during sync.")
             return 0
-
+    
     # Then, wait for the signal to go high (with timeout)
     while dut.uo_out[0].value == 0:
         await ClockCycles(dut.clk, 1)
@@ -151,7 +153,7 @@ async def measure_freq(dut, timeout_ms=3):
             dut._log.error("Timeout waiting for signal to go high during sync.")
             return 0
     
-    # We are now at the first rising edge. Start measuring.
+    # --- Measurement: We are now at a rising edge ---
     t_rise1 = cocotb.utils.get_sim_time(units="ns")
 
     # Wait for the next falling edge
@@ -161,7 +163,7 @@ async def measure_freq(dut, timeout_ms=3):
             dut._log.error("Timeout waiting for falling edge.")
             return 0
 
-    # Wait for the next rising edge
+    # Wait for the second rising edge
     while dut.uo_out[0].value == 0:
         await ClockCycles(dut.clk, 1)
         if (cocotb.utils.get_sim_time(units="ns") - t_rise1) > timeout_ns:
@@ -186,15 +188,17 @@ async def test_pwm_freq(dut):
     dut.rst_n.value = 1
     await ClockCycles(dut.clk, 5)
 
-    # --- FIX: Use comprehensive configuration from working examples ---
-    # Enable all outputs and PWM channels to ensure DUT is correctly configured.
-    dut._log.info("Configuring PWM module...")
-    await send_spi_transaction(dut, 1, 0x00, 0xFF) # Enable all uo_out
-    await send_spi_transaction(dut, 1, 0x02, 0xFF) # Enable PWM on all uo_out
+    # --- FIX: Apply the comprehensive configuration from the working example ---
+    # This ensures all necessary modules and pins are enabled.
+    dut._log.info("Configuring PWM module with full enable sequence...")
+    await send_spi_transaction(dut, 1, 0x00, 0xFF) # Enable uo_out
+    await send_spi_transaction(dut, 1, 0x01, 0xFF) # Enable uio_out
+    await send_spi_transaction(dut, 1, 0x02, 0xFF) # Select PWM for uo_out
+    await send_spi_transaction(dut, 1, 0x03, 0xFF) # Select PWM for uio_out
     await send_spi_transaction(dut, 1, 0x04, 0x80) # Set duty cycle to ~50%
     
     # Measure the frequency
-    period_ns = await measure_freq(dut, timeout_ms=3) # Use a 3ms timeout
+    period_ns = await measure_freq(dut)
     assert period_ns > 0, "Timeout while measuring frequency. PWM signal is not oscillating."
     
     frequency = 1 / (period_ns * 1e-9)
