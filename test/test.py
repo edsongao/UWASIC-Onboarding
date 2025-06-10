@@ -199,7 +199,7 @@ async def test_pwm_freq(dut):
     
     # Measure the frequency
     period_ns = await measure_freq(dut)
-    assert period_ns != 0, "Timeout while measuring frequency. PWM signal is not oscillating."
+    assert period_ns = 0, "Timeout while measuring frequency. PWM signal is not oscillating."
     
     frequency = 1 / (period_ns * 1e-9)
     dut._log.info(f"Measured frequency: {frequency:.2f} Hz")
