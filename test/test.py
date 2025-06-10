@@ -132,46 +132,54 @@ async def test_pwm_freq(dut):
 # Returns the period between rising edges in nanoseconds, or 0 on timeout.
 # Returns the period between rising edges in nanoseconds, or 0 on timeout.
 # Returns the period between rising edges in nanoseconds, or 0 on timeout.
-async def measure_freq(dut, timeout_ms=3):
+# Returns the period between rising edges in nanoseconds, or 0 on timeout.
+async def measure_freq(dut, cycle_limit=40000):
     """
-    Measures the period of dut.uo_out[0] using manual polling.
-    This function is now fully timeout-proof in all internal loops.
+    Measures the period of dut.uo_out[0] using a robust, cycle-based timeout.
+    This function is guaranteed to exit and will return 0 if the signal is static.
     """
-    timeout_ns = timeout_ms * 1_000_000
-    start_sim_time = cocotb.utils.get_sim_time(units="ns")
-
-    # --- Synchronization: Wait for the first rising edge ---
-    # Wait for the signal to be low
+    
+    # --- Synchronization Phase: Find the first rising edge ---
+    cycles = 0
+    # First, wait for the signal to be low.
     while dut.uo_out[0].value == 1:
         await ClockCycles(dut.clk, 1)
-        if (cocotb.utils.get_sim_time(units="ns") - start_sim_time) > timeout_ns:
-            dut._log.error("Timeout: Signal stuck high during synchronization.")
+        cycles += 1
+        if cycles > cycle_limit:
+            dut._log.error("Timeout: Signal stuck high during sync.")
             return 0
     
-    # Wait for the signal to go high
+    cycles = 0
+    # Then, wait for the signal to go high.
     while dut.uo_out[0].value == 0:
         await ClockCycles(dut.clk, 1)
-        if (cocotb.utils.get_sim_time(units="ns") - start_sim_time) > timeout_ns:
-            dut._log.error("Timeout: Signal stuck low during synchronization.")
+        cycles += 1
+        if cycles > cycle_limit:
+            dut._log.error("Timeout: Signal stuck low during sync.")
             return 0
     
-    # --- Measurement: We are now at a rising edge ---
+    # --- Measurement Phase ---
+    # We are now at the first rising edge.
     t_rise1 = cocotb.utils.get_sim_time(units="ns")
-
-    # Wait for the next falling edge (with timeout)
+    
+    cycles = 0
+    # Wait for the signal to go low again.
     while dut.uo_out[0].value == 1:
         await ClockCycles(dut.clk, 1)
-        if (cocotb.utils.get_sim_time(units="ns") - t_rise1) > timeout_ns:
-            dut._log.error("Timeout: Signal stuck high after first rising edge.")
+        cycles += 1
+        if cycles > cycle_limit:
+            dut._log.error("Timeout: Signal stuck high after first edge.")
             return 0
-
-    # Wait for the second rising edge (with timeout)
+            
+    cycles = 0
+    # Wait for the second rising edge.
     while dut.uo_out[0].value == 0:
         await ClockCycles(dut.clk, 1)
-        if (cocotb.utils.get_sim_time(units="ns") - t_rise1) > timeout_ns:
+        cycles += 1
+        if cycles > cycle_limit:
             dut._log.error("Timeout: Signal stuck low after falling edge.")
             return 0
-    
+
     t_rise2 = cocotb.utils.get_sim_time(units="ns")
     return t_rise2 - t_rise1
 
@@ -197,9 +205,7 @@ async def test_pwm_freq(dut):
     # --- Test Case 1: Oscillating Signal at 50% Duty Cycle ---
     dut._log.info("--- Testing oscillating frequency (50% duty cycle) ---")
     await send_spi_transaction(dut, 1, 0x04, 0x80) # ~50% duty cycle
-    
-    # FIX: Add a stabilization delay before measuring.
-    await ClockCycles(dut.clk, 500)
+    await ClockCycles(dut.clk, 500) # Stabilization delay
 
     period_ns = await measure_freq(dut)
     assert period_ns > 0, "FAIL: Timeout measuring oscillating signal. Signal is not running at 50% duty."
@@ -238,5 +244,6 @@ async def test_pwm_freq(dut):
         dut._log.info("Signal is static as expected.")
     dut._log.info("✓ Static (100%) frequency test passed.")
 
+    dut._log.info("PWM Frequency test suite completed successfully")
     dut._log.info("PWM Frequency test suite completed successfully")
 
