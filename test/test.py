@@ -217,136 +217,100 @@ async def edgedetections(dut, outpos = 0, outstream=0):
             await RisingEdge(dut.clk)
 
     return t_rising_edge1, t_falling_edge1, t_rising_edge2
-    
-async def measure_pwm_edges(dut, pwm_pin, timeout_us=500):
-    """
-    Waits for and measures a full PWM cycle on a given pin.
 
-    Args:
-        dut: The device under test.
-        pwm_pin: The specific pin object to monitor (e.g., dut.uo_out[0]).
-        timeout_us: How long to wait for an edge before giving up.
-
-    Returns:
-        A tuple of (period_ns, high_time_ns).
-        Returns (None, None) if a full cycle cannot be measured (e.g., timeout).
-    """
-    try:
-        # Wait for a rising edge to start the measurement
-        await with_timeout(RisingEdge(pwm_pin), timeout_us, 'us')
-        t_rise1 = get_sim_time('ns')
-
-        # Measure the high time
-        await with_timeout(FallingEdge(pwm_pin), timeout_us, 'us')
-        t_fall = get_sim_time('ns')
-
-        # Measure the full period
-        await with_timeout(RisingEdge(pwm_pin), timeout_us, 'us')
-        t_rise2 = get_sim_time('ns')
-
-        period_ns = t_rise2 - t_rise1
-        high_time_ns = t_fall - t_rise1
-        return (period_ns, high_time_ns)
-    except cocotb.result.SimTimeoutError:
-        # This is the expected result for 0% or 100% duty cycles
-        return (None, None)
-
-@cocotb.test()
+@cocotb.test() 
 async def test_pwm_freq(dut):
-    """
-    Verifies that the PWM frequency is stable and within spec.
-    This test is optimized to check one pin thoroughly, as frequency should be
-    independent of the duty cycle and pin number.
-    """
-    dut._log.info("Start PWM Frequency Test")
+    # Write your test here
     clock = Clock(dut.clk, 100, units="ns")
     cocotb.start_soon(clock.start())
 
-    # --- Reset Sequence ---
+    #initialize values for DUT
+
+    dut._log.info("Reset")
     dut.ena.value = 1
-    dut.ui_in.value = ui_in_logicarray(ncs=1, bit=0, sclk=0)
+    ncs = 1
+    bit = 0
+    sclk = 0
+    dut.ui_in.value = ui_in_logicarray(ncs, bit, sclk)
     dut.rst_n.value = 0
+
     await ClockCycles(dut.clk, 5)
     dut.rst_n.value = 1
     await ClockCycles(dut.clk, 5)
 
-    # --- Setup for Test ---
-    # Enable PWM and output on a single, representative pin (e.g., pin 1, uo_out[0])
-    # As per design spec, behavior should be identical across pins.
-    await send_spi_transaction(dut, 1, 0x02, 0x01)  # Enable PWM on pin 1
-    await send_spi_transaction(dut, 1, 0x00, 0x01)  # Enable output on pin 1
+    #Sweep across lots of frequencies (THIS WAS LAST TESTED ON INCREMENT = 17, DROPPED TO SPEED UP)
+    for freq in range(0, 256, 51): 
+        dut._log.info(f"on duty cycle {(freq/255)*100}%")
+        #Verify across every port
+        for case in range(16):
+            ui_in_val = await send_spi_transaction(dut, 1, 0x04, freq)
+            #dut._log.info(f"enabling output. address {case//8+2} on pin {case % 8 + 1}")
+            dut._log.info(f"Checking on pin {case + 1}")
 
-    # Set a 50% duty cycle for a stable, easily measurable signal
-    await send_spi_transaction(dut, 1, 0x04, 128)
-    dut._log.info("Testing frequency with a 50% duty cycle on pin uo_out[0].")
+            ui_in_val = await send_spi_transaction(dut, 1, case//8 + 2, 1 << (case % 8)) # enable output on pin 1
+            ui_in_val = await send_spi_transaction(dut, 1, case//8, 1 << (case % 8)) # enable PWM on pin 1
 
-    # --- Measurement ---
-    pwm_pin = dut.uo_out[0]
-    period_ns, _ = await measure_pwm_edges(dut, pwm_pin)
+            rising1, falling1, rising2 = await edgedetections(dut, case % 8 + 1, outstream = case//8)
+            
+            period = rising2 - rising1
+            
+            if freq == 0 or freq == 255: 
+                #these wont work for frequency because its always on or off. below will throw error
+                #You can check that if freq is 255. fallingedge should be -1 
+                #and if freq is 0, rising edge 1 and 2 is -1
+                dut._log.info(f"t_rising_edge1: {rising1}, t_rising_edge2: {rising2}, t_falling_edge: {falling1}")
 
-    # --- Assertion ---
-    assert period_ns is not None, "FAIL: Timed out waiting for PWM signal. Check enables."
-    
-    # Calculate frequency from the measured period in nanoseconds
-    frequency_hz = 1e9 / period_ns
-    dut._log.info(f"Measured Period: {period_ns} ns. Calculated Frequency: {frequency_hz:.2f} Hz")
-
-    # Check if the frequency is within the required tolerance
-    assert 2970 < frequency_hz < 3030, f"FAIL: Frequency {frequency_hz:.2f} Hz is out of spec [2970, 3030]."
-    
-    dut._log.info("PASS: PWM Frequency is within tolerance.")
-
+            else:
+                frequency = 1e9/period
+                dut._log.info(f"t_rising_edge1: {rising1}, t_rising_edge2: {rising2}")
+                dut._log.info(f"frequency is: {frequency}")
+                assert frequency < 3030 and frequency > 2970
 
 @cocotb.test()
 async def test_pwm_duty(dut):
-    """
-    Verifies PWM duty cycle accuracy by sweeping through a range of values.
-    """
-    dut._log.info("Start PWM Duty Cycle Test")
+
+    #very similar deal. Since above test verified pins work and design spec states no behavioural
+    #difference between pins, testing this on every pin is a waste. So pick one and sweep the frequencies
+
     clock = Clock(dut.clk, 100, units="ns")
     cocotb.start_soon(clock.start())
 
-    # --- Reset Sequence ---
+    #initialize values for DUT
+
+    dut._log.info("Reset")
     dut.ena.value = 1
-    dut.ui_in.value = ui_in_logicarray(ncs=1, bit=0, sclk=0)
+    ncs = 1
+    bit = 0
+    sclk = 0
+    dut.ui_in.value = ui_in_logicarray(ncs, bit, sclk)
     dut.rst_n.value = 0
+
     await ClockCycles(dut.clk, 5)
     dut.rst_n.value = 1
     await ClockCycles(dut.clk, 5)
 
-    # --- Setup for Test ---
-    # Enable a single pin for the sweep. We only need to do this once.
-    await send_spi_transaction(dut, 1, 0x02, 0x01) # Enable PWM on pin 1
-    await send_spi_transaction(dut, 1, 0x00, 0x01) # Enable output on pin 1
-    pwm_pin = dut.uo_out[0]
+    for case in range(0, 256, 17): #drastically reduced to decrease time
+        ui_in_val = await send_spi_transaction(dut, 1, 0x04, case)
+        ui_in_val = await send_spi_transaction(dut, 1, 0x02, 0x01) # enable output on pin 1
+        ui_in_val = await send_spi_transaction(dut, 1, 0x00, 0x01) # enable PWM on pin 1
 
-    # --- Sweep and Test ---
-    for duty_value in range(0, 256, 17):
-        expected_duty_pct = (duty_value / 255.0) * 100
-        dut._log.info(f"Testing duty cycle set to {duty_value}/255 (~{expected_duty_pct:.1f}%)")
+        dut._log.info(f"Checking duty cycle at {round((case/255)*100, 2)}% (case: {case})")
 
-        await send_spi_transaction(dut, 1, 0x04, duty_value)
+        rising1, falling1, rising2 = await edgedetections(dut, 1, 0)
         
-        period_ns, high_time_ns = await measure_pwm_edges(dut, pwm_pin)
-
-        if duty_value == 0:
-            assert high_time_ns is None, "FAIL (0%): Signal should not rise, but it did."
-            assert pwm_pin.value == 0, "FAIL (0%): Pin should be low, but it's high."
-            dut._log.info("PASS: Signal correctly remained low.")
-        elif duty_value == 255:
-            assert high_time_ns is None, "FAIL (100%): Signal should not fall, but it did."
-            assert pwm_pin.value == 1, "FAIL (100%): Pin should be high, but it's low."
-            dut._log.info("PASS: Signal correctly remained high.")
+        
+        if case == 0:
+            #never rises in 10000 clock cycles
+            assert rising1 == -1
+        elif case == 255:
+            #never drops in 10000 clock cycles
+            assert falling1 == -1 
         else:
-            assert period_ns is not None, f"FAIL ({expected_duty_pct:.1f}%): Timed out waiting for signal."
+            period = rising2 - rising1
+            hightime = falling1 - rising1
+
+            dut._log.info(f"Expected Duty Cycle: {case/256}, actual duty cycle: {hightime/period}.")
+            assert ((hightime/period)*100) == (case/256)*100, f"case failled. duty: {(case/255)*100}, actual duty: {(hightime/period)*100}"
+
             
-            measured_duty_ratio = high_time_ns / period_ns
-            expected_duty_ratio = duty_value / 256.0 # The PWM likely has 256 steps (0-255)
-
-            dut._log.info(f"  Expected duty ratio: {expected_duty_ratio:.3f}. Measured: {measured_duty_ratio:.3f}")
-
-            # Use a tolerance for floating point comparison! This is critical.
-            # +/- 1% absolute tolerance.
-            assert abs(measured_duty_ratio - expected_duty_ratio) < 0.01, \
-                f"FAIL: Duty cycle mismatch. Expected ~{expected_duty_ratio:.3f}, got {measured_duty_ratio:.3f}"
-            dut._log.info("PASS: Measured duty cycle is within tolerance.")
+    dut._log.info("PWM Duty Cycle test completed successfully")
