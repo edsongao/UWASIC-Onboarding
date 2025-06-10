@@ -268,9 +268,7 @@ async def test_pwm_freq(dut):
 
 @cocotb.test()
 async def test_pwm_duty(dut):
-
-    #very similar deal. Since above test verified pins work and design spec states no behavioural
-    #difference between pins, testing this on every pin is a waste. So pick one and sweep the frequencies
+#testing this on every pin is a waste. So pick one and sweep the frequencies
 
     clock = Clock(dut.clk, 100, units="ns")
     cocotb.start_soon(clock.start())
@@ -289,21 +287,20 @@ async def test_pwm_duty(dut):
     dut.rst_n.value = 1
     await ClockCycles(dut.clk, 5)
 
-    for case in range(0, 256, 17): #drastically reduced to decrease time
+    for case in range(0, 256, 17):
         ui_in_val = await send_spi_transaction(dut, 1, 0x04, case)
         ui_in_val = await send_spi_transaction(dut, 1, 0x02, 0x01) # enable output on pin 1
         ui_in_val = await send_spi_transaction(dut, 1, 0x00, 0x01) # enable PWM on pin 1
 
         dut._log.info(f"Checking duty cycle at {round((case/255)*100, 2)}% (case: {case})")
 
-        rising1, falling1, rising2 = await edgedetections(dut, 1, 0)
-        
-        
+        rising1 = await edgedetections(dut, 1, 0)
+        falling1  = await edgedetections(dut, 1, 0)
+        rising2 = await edgedetections(dut, 1, 0)
+
         if case == 0:
-            #never rises in 10000 clock cycles
             assert rising1 == -1
         elif case == 255:
-            #never drops in 10000 clock cycles
             assert falling1 == -1 
         else:
             period = rising2 - rising1
@@ -313,4 +310,4 @@ async def test_pwm_duty(dut):
             assert ((hightime/period)*100) == (case/256)*100, f"case failled. duty: {(case/255)*100}, actual duty: {(hightime/period)*100}"
 
             
-    dut._log.info("PWM Duty Cycle test completed successfully")
+    dut._log.info("PWM Duty Cycle Suite completed successfully")
